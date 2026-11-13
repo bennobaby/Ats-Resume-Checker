@@ -62,6 +62,28 @@ public class ParseabilityRuleTests
         AssertFinding(ok, "length", Severity.Pass, "The resume length is within 150 to 1200 words.", "150");
     }
 
+    [Fact]
+    public void Layout_rules_warn_from_structure_facts()
+    {
+        var resume = new ExtractedResume(
+            ResumeSource.Docx,
+            "body text",
+            200,
+            new StructureFacts(2, 1, true, true, true));
+        var findings = ParseabilityRuleSet.Evaluate(resume);
+        AssertFinding(findings, "tables", Severity.Warn, "Tables often break ATS parsers.", "2");
+        AssertFinding(findings, "text-boxes", Severity.Warn, "Text boxes are often skipped by ATS parsers.", "1");
+        AssertFinding(findings, "columns", Severity.Warn, "Multiple columns often scramble ATS reading order.", "multiple columns");
+        AssertFinding(findings, "header-footer", Severity.Warn, "Header and footer text is often ignored by an ATS.", "header or footer contains text");
+    }
+
+    [Fact]
+    public void Layout_rules_do_not_run_when_layout_was_not_inspected()
+    {
+        var findings = ParseabilityRuleSet.Evaluate(Sample("body text", 200));
+        Assert.DoesNotContain(findings, finding => finding.RuleId is "tables" or "text-boxes" or "columns" or "header-footer");
+    }
+
     private static ExtractedResume Sample(string text, int wordCount)
     {
         return new ExtractedResume(
