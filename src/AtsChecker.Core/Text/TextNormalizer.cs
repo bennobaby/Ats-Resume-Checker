@@ -15,10 +15,11 @@ public static class TextNormalizer
         var tokens = new List<string>(raw.Length);
         foreach (var token in raw)
         {
-            if (token.Length >= 4 && !Stopwords.Words.Contains(token))
-                tokens.Add(token);
-            else if (token.Length == 3 && token is not "and" and not "the")
-                tokens.Add(token);
+            if (Stopwords.Words.Contains(token))
+                continue;
+            if (token.Length < 4 && token != "net")
+                continue;
+            tokens.Add(token);
         }
 
         return tokens;
