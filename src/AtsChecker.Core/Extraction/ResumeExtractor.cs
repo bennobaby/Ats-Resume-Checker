@@ -79,7 +79,7 @@ public sealed class ResumeExtractor : IResumeExtractor
             using var doc = WordprocessingDocument.Open(buffer, false);
             var body = doc.MainDocumentPart?.Document?.Body
                 ?? throw new ResumeUnreadableException();
-            var text = string.Join("\n", body.Descendants<Paragraph>().Select(paragraph => paragraph.InnerText));
+            var text = string.Join("\n", BodyParagraphs(body).Select(ParagraphText));
             var facts = new StructureFacts(
                 body.Descendants<Table>().Count(),
                 body.Descendants().Count(element => element.LocalName == "txbxContent"),
@@ -96,6 +96,27 @@ public sealed class ResumeExtractor : IResumeExtractor
         {
             throw new ResumeUnreadableException("This file could not be read.", ex);
         }
+    }
+
+    private static IEnumerable<OpenXmlElement> BodyParagraphs(Body body) =>
+        body.Descendants().Where(element => element.LocalName == "p");
+
+    private static string ParagraphText(OpenXmlElement paragraph) =>
+        string.Concat(paragraph
+            .Descendants()
+            .Where(element => element.LocalName == "t")
+            .Where(text => NearestParagraph(text) == paragraph)
+            .Select(text => text.InnerText));
+
+    private static OpenXmlElement? NearestParagraph(OpenXmlElement element)
+    {
+        for (var current = element.Parent; current is not null; current = current.Parent)
+        {
+            if (current.LocalName == "p")
+                return current;
+        }
+
+        return null;
     }
 
     private static bool HeaderOrFooterHasText(WordprocessingDocument doc)

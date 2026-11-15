@@ -9,9 +9,10 @@ public class DocxExtractorTests
         var resume = new ResumeExtractor().Extract(new ResumeInput(
             ResumeSource.Docx, stream, null, "resume.docx", ""));
 
-        Assert.Contains("Visible body", resume.Text);
-        Assert.Contains("Inside table", resume.Text);
-        Assert.Contains("Inside box", resume.Text);
+        Assert.Equal(
+            "Visible body\nInside table\n\nInside box",
+            resume.Text);
+        Assert.Equal(6, resume.WordCount);
         Assert.DoesNotContain("Secret Header", resume.Text);
         Assert.True(resume.Facts.LayoutInspected);
         Assert.True(resume.Facts.TableCount >= 1);
