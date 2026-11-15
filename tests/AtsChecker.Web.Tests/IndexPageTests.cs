@@ -34,6 +34,55 @@ public class IndexPageTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.DoesNotContain("id=\"parseability\"", html);
     }
 
+    [Fact]
+    public async Task Wrong_extension_is_rejected()
+    {
+        var html = await PostFile("notes.txt", new byte[] { 1, 2, 3 }, resumeText: "pasted");
+        Assert.Contains("Upload a PDF or Word (.docx) file.", html);
+        Assert.DoesNotContain("id=\"parseability\"", html);
+    }
+
+    [Fact]
+    public async Task Oversized_file_is_rejected()
+    {
+        var html = await PostFile("resume.pdf", new byte[5 * 1024 * 1024 + 1], resumeText: null);
+        Assert.Contains("Resume files must be 5 MB or smaller.", html);
+        Assert.DoesNotContain("id=\"parseability\"", html);
+    }
+
+    [Fact]
+    public async Task Unreadable_pdf_shows_only_the_read_error()
+    {
+        var html = await PostFile("resume.pdf", new byte[] { 1, 2, 3, 4 }, resumeText: "pasted text");
+        Assert.Contains("This file could not be read.", html);
+        Assert.DoesNotContain("id=\"parseability\"", html);
+    }
+
+    [Fact]
+    public async Task Uploaded_file_wins_over_pasted_text()
+    {
+        var pdf = MinimalPdf.Create("Hello ATS");
+        var html = await PostFile("resume.PDF", pdf, resumeText: "this paste should be ignored");
+        Assert.Contains(">PDF<", html);
+        Assert.DoesNotContain(">Pasted text<", html);
+    }
+
+    private async Task<string> PostFile(string fileName, byte[] bytes, string? resumeText)
+    {
+        var client = _factory.CreateClient();
+        var page = await client.GetAsync("/");
+        var html = await page.Content.ReadAsStringAsync();
+        var form = new MultipartFormDataContent();
+        form.Add(new StringContent(AntiforgeryToken(html)), "__RequestVerificationToken");
+        if (resumeText is not null)
+            form.Add(new StringContent(resumeText), "ResumeText");
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        form.Add(file, "ResumeFile", fileName);
+        var response = await client.PostAsync("/", form);
+        return await response.Content.ReadAsStringAsync();
+    }
+
     private async Task<string> Post(Dictionary<string, string> fields)
     {
         var client = _factory.CreateClient();
