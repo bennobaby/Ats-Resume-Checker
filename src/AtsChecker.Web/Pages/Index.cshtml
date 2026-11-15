@@ -1,0 +1,63 @@
+﻿@page
+@model AtsChecker.Web.Pages.IndexModel
+@{
+    ViewData["Title"] = "ATS resume checker";
+    string SourceLabel(AtsChecker.Core.ResumeSource source) => source switch
+    {
+        AtsChecker.Core.ResumeSource.Pdf => "PDF",
+        AtsChecker.Core.ResumeSource.Docx => "Word",
+        _ => "Pasted text"
+    };
+}
+<h1>ATS resume checker</h1>
+<form method="post" enctype="multipart/form-data">
+    <label>Resume file <input type="file" name="ResumeFile" /></label>
+    <label>Paste resume <textarea name="ResumeText"></textarea></label>
+    <label>Job description <textarea name="JobDescription"></textarea></label>
+    <button type="submit">Check resume</button>
+</form>
+@if (Model.ErrorMessage is not null)
+{
+    <p id="error">@Model.ErrorMessage</p>
+}
+@if (Model.Report is not null)
+{
+    <div id="report">
+        <p id="parseability">Parseability @Model.Report.ParseabilityPercent%</p>
+        @if (Model.Report.Keywords.WasRun)
+        {
+            <p id="keywords">Keywords @Model.Report.Keywords.ScorePercent%</p>
+        }
+        else
+        {
+            <p id="keywords">@Model.Report.Keywords.SkipReason</p>
+        }
+        <p id="source">@SourceLabel(Model.Report.Source)</p>
+        <p id="word-count">@Model.Report.WordCount words</p>
+        @if (Model.Report.LayoutNote is not null)
+        {
+            <p id="layout-note">@Model.Report.LayoutNote</p>
+        }
+        <ul id="findings">
+            @foreach (var finding in Model.Report.Findings)
+            {
+                <li>@finding.Severity @finding.Title @finding.Explanation @finding.Evidence</li>
+            }
+        </ul>
+        @if (Model.Report.Keywords.WasRun)
+        {
+            <ul id="found">
+                @foreach (var term in Model.Report.Keywords.Found)
+                {
+                    <li>@term</li>
+                }
+            </ul>
+            <ul id="missing">
+                @foreach (var term in Model.Report.Keywords.Missing)
+                {
+                    <li>@term</li>
+                }
+            </ul>
+        }
+    </div>
+}
