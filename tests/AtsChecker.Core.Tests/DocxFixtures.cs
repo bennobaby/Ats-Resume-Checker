@@ -37,4 +37,20 @@ internal static class DocxFixtures
 
         return stream.ToArray();
     }
+
+    public static byte[] WithFont(string fontName)
+    {
+        using var stream = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document, true))
+        {
+            var main = doc.AddMainDocumentPart();
+            var run = new Run(
+                new RunProperties(new RunFonts { Ascii = fontName }),
+                new Text("Visible body"));
+            main.Document = new Document(new Body(new Paragraph(run)));
+            main.Document.Save();
+        }
+
+        return stream.ToArray();
+    }
 }

@@ -8,56 +8,244 @@
         AtsChecker.Core.ResumeSource.Docx => "Word",
         _ => "Pasted text"
     };
+
+    string? Remedy(AtsChecker.Core.Finding finding)
+    {
+        if (finding.Severity == AtsChecker.Core.Severity.Pass)
+            return null;
+
+        return finding.RuleId switch
+        {
+            "text-extracted" => "Save the resume as a text PDF or a Word file, or paste the text. A scanned image has nothing an ATS can read.",
+            "email" => "Add an email address in the body of the resume.",
+            "phone" => "Add a phone number of 10 to 15 digits on a single line.",
+            "location" => "Put the city and region on one line in the body, such as Austin, TX.",
+            "placeholders" => "Replace template text such as Company 1, First Last, or Your Name with the real details.",
+            "job-titles" => "Write the title in full, such as Senior Account Executive, instead of Sr. or Exec.",
+            "heading-experience" => "Put one of these on its own line: experience, work experience, professional experience, employment, employment history, work history.",
+            "heading-education" => "Put education or academic background on its own line.",
+            "heading-skills" => "Put one of these on its own line: skills, technical skills, core skills, core competencies, competencies.",
+            "length" when finding.Explanation.Contains("under", StringComparison.Ordinal) => "Add real detail until the resume is at least 150 words.",
+            "length" => "Shorten the resume to 1200 words or fewer.",
+            "dates" => "Put each job under Experience with a title and a start and end, such as Jan 2020 – Mar 2023.",
+            "file-size" => "Save a copy under 2.5 MB. Some parsers skip larger files.",
+            "spaced-letters" => "Remove the spaces between the letters of a word.",
+            "symbols" => "Replace emoji and icons with words.",
+            "images" => "Delete photos, logos, and charts. Write the information as text.",
+            "fonts" => "Use Arial, Calibri, or Times New Roman.",
+            "tables" => "Replace each table with normal paragraphs.",
+            "text-boxes" => "Move the text out of text boxes and into the document body.",
+            "columns" => "Set the document to a single column.",
+            "header-footer" => "Move header and footer text into the body. That text is not part of the checked resume.",
+            _ => null
+        };
+    }
+
+    string Experience(int? months)
+    {
+        if (months is null)
+            return "Not found";
+        var years = months.Value / 12;
+        var rest = months.Value % 12;
+        if (years == 0)
+            return rest + " months";
+        if (rest == 0)
+            return years + (years == 1 ? " year" : " years");
+        return years + (years == 1 ? " year " : " years ") + rest + " months";
+    }
+
+    string? KeywordRemedy(string? reason) => reason switch
+    {
+        "Keyword match was skipped because the resume had no text." => "Paste the resume or upload a file that contains selectable text.",
+        "Keyword match was skipped because the job description was empty." => "Paste the job description, then check again.",
+        "No keywords could be extracted from the job description." => "Use job wording with words of 4 or more letters. Short filler words are ignored.",
+        _ => null
+    };
 }
-<h1>ATS resume checker</h1>
-<form method="post" enctype="multipart/form-data">
-    <label>Resume file <input type="file" name="ResumeFile" /></label>
-    <label>Paste resume <textarea name="ResumeText"></textarea></label>
-    <label>Job description <textarea name="JobDescription"></textarea></label>
-    <button type="submit">Check resume</button>
-</form>
-@if (Model.ErrorMessage is not null)
-{
-    <p id="error">@Model.ErrorMessage</p>
-}
-@if (Model.Report is not null)
-{
-    <div id="report">
-        <p id="parseability">Parseability @Model.Report.ParseabilityPercent%</p>
-        @if (Model.Report.Keywords.WasRun)
-        {
-            <p id="keywords">Keywords @Model.Report.Keywords.ScorePercent%</p>
-        }
-        else
-        {
-            <p id="keywords">@Model.Report.Keywords.SkipReason</p>
-        }
-        <p id="source">@SourceLabel(Model.Report.Source)</p>
-        <p id="word-count">@Model.Report.WordCount words</p>
-        @if (Model.Report.LayoutNote is not null)
-        {
-            <p id="layout-note">@Model.Report.LayoutNote</p>
-        }
-        <ul id="findings">
-            @foreach (var finding in Model.Report.Findings)
-            {
-                <li>@finding.Severity @finding.Title @finding.Explanation @finding.Evidence</li>
+<div class="room">
+    <form method="post" enctype="multipart/form-data" class="sheet check-form">
+        <div class="mast">
+            <h1>ATS resume checker</h1>
+            <p class="lede">Choose a PDF or Word file, or paste the resume. A file is used when both are present. Paste the job description to get a keyword score.</p>
+        </div>
+        <label class="file">
+            <span class="file-title">Resume file</span>
+            <span class="file-chosen" id="file-chosen">PDF or Word, up to 5 MB</span>
+            <input id="resume-file" type="file" name="ResumeFile" accept=".pdf,.docx" />
+        </label>
+        <div class="columns">
+            <div class="field">
+                <label for="resume-text">Paste resume</label>
+                <textarea id="resume-text" name="ResumeText" rows="12">@Model.ResumeText</textarea>
+            </div>
+            <div class="field">
+                <label for="job-description">Job description</label>
+                <textarea id="job-description" name="JobDescription" rows="12">@Model.JobDescription</textarea>
+            </div>
+        </div>
+        <button type="submit">Check resume</button>
+    </form>
+    @if (Model.ErrorMessage is not null)
+    {
+        <p class="sheet error" id="error">@Model.ErrorMessage</p>
+    }
+    @if (Model.Report is not null)
+    {
+        <div class="sheet report" id="report">
+            <div class="readout">
+                <p class="score" id="parseability">Parseability @Model.Report.ParseabilityPercent%</p>
+                @if (Model.Report.Keywords.WasRun)
+                {
+                    <p class="score" id="keywords">Keywords @Model.Report.Keywords.ScorePercent%</p>
+                }
+                else
+                {
+                    <p class="skip" id="keywords">@Model.Report.Keywords.SkipReason</p>
+                }
+            </div>
+            @{
+                var keywordRemedy = KeywordRemedy(Model.Report.Keywords.SkipReason);
             }
-        </ul>
-        @if (Model.Report.Keywords.WasRun)
-        {
-            <ul id="found">
-                @foreach (var term in Model.Report.Keywords.Found)
+            @if (keywordRemedy is not null)
+            {
+                <p class="remedy">@keywordRemedy</p>
+            }
+            <div class="facts">
+                <p class="meta" id="source">@SourceLabel(Model.Report.Source)</p>
+                <p class="meta" id="word-count">@Model.Report.WordCount words</p>
+                @if (Model.Report.LayoutNote is not null)
                 {
-                    <li>@term</li>
+                    <p class="note" id="layout-note">@Model.Report.LayoutNote</p>
+                    <p class="remedy">@(Model.Report.LayoutNote.Contains("Text boxes", StringComparison.Ordinal) ? "Upload a Word file to check text boxes and headers." : "Upload a PDF or Word file to check tables, columns, images, and fonts.")</p>
+                }
+            </div>
+            <section class="profile">
+                <h2>What a parser would store</h2>
+                <dl class="fields">
+                    <dt>Name</dt>
+                    <dd>@(Model.Report.Profile.Name ?? "Not found")</dd>
+                    <dt>Email</dt>
+                    <dd>@(Model.Report.Profile.Email ?? "Not found")</dd>
+                    <dt>Phone</dt>
+                    <dd>@(Model.Report.Profile.Phone ?? "Not found")</dd>
+                    <dt>Location</dt>
+                    <dd>@(Model.Report.Profile.Location ?? "Not found")</dd>
+                    <dt>Links</dt>
+                    <dd>@(Model.Report.Profile.Links.Count == 0 ? "Not found" : string.Join(", ", Model.Report.Profile.Links))</dd>
+                    <dt>Experience</dt>
+                    <dd>@Experience(Model.Report.Profile.ExperienceMonths)</dd>
+                </dl>
+                <h2>Skills</h2>
+                @if (Model.Report.Profile.Skills.Count == 0)
+                {
+                    <p class="note">Not found</p>
+                }
+                else
+                {
+                    <ul class="entries">
+                        @foreach (var skill in Model.Report.Profile.Skills)
+                        {
+                            <li>@skill</li>
+                        }
+                    </ul>
+                }
+                <h2>Jobs</h2>
+                @if (Model.Report.Profile.Jobs.Count == 0)
+                {
+                    <p class="note">Not found</p>
+                }
+                else
+                {
+                    <ul class="entries">
+                        @foreach (var job in Model.Report.Profile.Jobs)
+                        {
+                            <li>@job.Title@(job.Employer is null ? "" : ", " + job.Employer) — @job.Start – @job.End</li>
+                        }
+                    </ul>
+                }
+                <h2>Education</h2>
+                @if (Model.Report.Profile.Education.Count == 0)
+                {
+                    <p class="note">Not found</p>
+                }
+                else
+                {
+                    <ul class="entries">
+                        @foreach (var school in Model.Report.Profile.Education)
+                        {
+                            <li>@school.School@(school.Degree is null ? "" : ", " + school.Degree)@(school.Start is null ? "" : " — " + school.Start + (school.End is null ? "" : " – " + school.End))</li>
+                        }
+                    </ul>
+                }
+                <h2>Certifications</h2>
+                @if (Model.Report.Profile.Certifications.Count == 0)
+                {
+                    <p class="note">Not found</p>
+                }
+                else
+                {
+                    <ul class="entries">
+                        @foreach (var certificate in Model.Report.Profile.Certifications)
+                        {
+                            <li>@certificate.Name@(certificate.Date is null ? "" : " — " + certificate.Date)</li>
+                        }
+                    </ul>
+                }
+            </section>
+            <p class="how">Parseability is the average of the lines below. Pass counts as 1, a warning as 0.5, and a fail as 0. The keyword percent is found terms divided by terms taken from the job description. The two numbers stay separate.</p>
+            <ul class="findings" id="findings">
+                @foreach (var finding in Model.Report.Findings)
+                {
+                    <li class="finding finding-@finding.Severity.ToString().ToLowerInvariant()">
+                        <span class="finding-severity">@finding.Severity</span>
+                        <span class="finding-title">@finding.Title</span>
+                        <span class="finding-explanation">@finding.Explanation</span>
+                        @if (!string.IsNullOrWhiteSpace(finding.Evidence))
+                        {
+                            <span class="finding-evidence">@finding.Evidence</span>
+                        }
+                        @if (Remedy(finding) is string remedy)
+                        {
+                            <span class="finding-fix">@remedy</span>
+                        }
+                    </li>
                 }
             </ul>
-            <ul id="missing">
-                @foreach (var term in Model.Report.Keywords.Missing)
-                {
-                    <li>@term</li>
-                }
-            </ul>
-        }
-    </div>
-}
+            @if (Model.Report.Keywords.WasRun)
+            {
+                <div class="term-columns">
+                    <div>
+                        <h2>Found in the resume</h2>
+                        <ul class="terms" id="found">
+                            @foreach (var term in Model.Report.Keywords.Found)
+                            {
+                                <li>@term</li>
+                            }
+                        </ul>
+                    </div>
+                    <div>
+                        <h2>Missing from the resume</h2>
+                        @if (Model.Report.Keywords.Missing.Count > 0)
+                        {
+                            <p class="remedy">Use a missing term only when it describes work you did.</p>
+                        }
+                        <ul class="terms" id="missing">
+                            @foreach (var term in Model.Report.Keywords.Missing)
+                            {
+                                <li>@term</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+<script>
+    const resumeFile = document.getElementById("resume-file");
+    const fileChosen = document.getElementById("file-chosen");
+    resumeFile?.addEventListener("change", () => {
+        const name = resumeFile.files && resumeFile.files[0] ? resumeFile.files[0].name : "";
+        if (fileChosen) fileChosen.textContent = name || "PDF or Word, up to 5 MB";
+    });
+</script>

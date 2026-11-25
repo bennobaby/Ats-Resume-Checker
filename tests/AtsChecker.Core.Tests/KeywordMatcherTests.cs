@@ -30,11 +30,47 @@ public class KeywordMatcherTests
     }
 
     [Fact]
+    public void Aliases_and_symbol_tokens_match()
+    {
+        var match = KeywordMatcher.Match(
+            "js developer using k8s and postgres, plus C#",
+            "javascript developer kubernetes postgresql c#");
+
+        Assert.Contains("javascript", match.Found);
+        Assert.Contains("javascript developer", match.Found);
+        Assert.Contains("kubernetes", match.Found);
+        Assert.Contains("postgresql", match.Found);
+        Assert.Contains("c#", match.Found);
+        Assert.DoesNotContain("java", match.Found);
+    }
+
+    [Fact]
+    public void A_listed_skill_counts_when_the_body_uses_the_alias()
+    {
+        var match = KeywordMatcher.Match("built services", "javascript", new[] { "JS" });
+        Assert.Contains("javascript", match.Found);
+    }
+
+    [Fact]
     public void Unigram_does_not_match_inside_a_longer_token()
     {
         var match = KeywordMatcher.Match("javascript engineer", "java");
         Assert.DoesNotContain("java", match.Found);
         Assert.Contains("java", match.Missing);
+    }
+
+    [Fact]
+    public void Filler_does_not_become_a_phrase()
+    {
+        var match = KeywordMatcher.Match(
+            "python developer for internal tools",
+            "Looking for a python developer who writes clear internal tools.");
+
+        var terms = match.Found.Concat(match.Missing).ToArray();
+        Assert.DoesNotContain("looking python", terms);
+        Assert.Contains("python developer", match.Found);
+        Assert.Contains("internal tools", match.Found);
+        Assert.DoesNotContain("developer internal", terms);
     }
 
     [Fact]

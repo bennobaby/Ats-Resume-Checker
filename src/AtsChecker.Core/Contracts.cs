@@ -16,7 +16,30 @@ public sealed record StructureFacts(
     int TextBoxCount,
     bool HasMultipleColumns,
     bool HeaderOrFooterHasText,
-    bool LayoutInspected);
+    bool LayoutInspected,
+    int ImageCount = 0,
+    bool ImagesInspected = false,
+    string? UnusualFont = null,
+    bool FontsInspected = false,
+    bool FlowInspected = false);
+
+public sealed record JobPost(string Title, string? Employer, string Start, string End);
+
+public sealed record EducationEntry(string School, string? Degree, string? Start, string? End);
+
+public sealed record CertificationEntry(string Name, string? Date);
+
+public sealed record ResumeProfile(
+    string? Name,
+    string? Email,
+    string? Phone,
+    string? Location,
+    IReadOnlyList<string> Links,
+    IReadOnlyList<string> Skills,
+    IReadOnlyList<JobPost> Jobs,
+    IReadOnlyList<EducationEntry> Education,
+    IReadOnlyList<CertificationEntry> Certifications,
+    int? ExperienceMonths);
 
 public sealed record ExtractedResume(
     ResumeSource Source,
@@ -44,7 +67,8 @@ public sealed record CheckReport(
     IReadOnlyList<Finding> Findings,
     ResumeSource Source,
     int WordCount,
-    string? LayoutNote);
+    string? LayoutNote,
+    ResumeProfile Profile);
 
 public interface IResumeExtractor
 {

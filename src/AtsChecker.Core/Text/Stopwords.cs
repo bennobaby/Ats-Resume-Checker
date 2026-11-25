@@ -9,6 +9,9 @@ public static class Stopwords
         "must", "only", "other", "over", "shall", "should", "some", "such",
         "than", "that", "their", "them", "then", "there", "these", "they",
         "this", "those", "very", "were", "what", "when", "where", "which",
-        "with", "would", "your"
+        "with", "would", "your",
+        "looking", "seeking", "writes", "writing", "clear", "strong", "using",
+        "join", "team", "role", "required", "preferred", "ability", "years",
+        "year", "position", "opportunity", "candidate", "candidates"
     };
 }

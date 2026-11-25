@@ -12,6 +12,10 @@ public class PdfExtractorTests
         Assert.Contains("Hello", resume.Text);
         Assert.Contains("ATS", resume.Text);
         Assert.False(resume.Facts.LayoutInspected);
+        Assert.True(resume.Facts.FlowInspected);
+        Assert.True(resume.Facts.ImagesInspected);
+        Assert.True(resume.Facts.FontsInspected);
+        Assert.Equal(0, resume.Facts.ImageCount);
         Assert.True(resume.WordCount >= 2);
     }
 

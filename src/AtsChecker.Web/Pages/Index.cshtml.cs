@@ -66,7 +66,7 @@ public class IndexModel : PageModel
                     : ResumeSource.Docx;
                 var extracted = _extractor.Extract(new ResumeInput(
                     source, buffer, null, ResumeFile.FileName, JobDescription ?? ""));
-                Report = _checker.Check(extracted, JobDescription ?? "");
+                Report = WithFileSize(_checker.Check(extracted, JobDescription ?? ""), ResumeFile.Length);
                 return Page();
             }
 
@@ -81,5 +81,19 @@ public class IndexModel : PageModel
             Report = null;
             return Page();
         }
+    }
+
+    private static CheckReport WithFileSize(CheckReport report, long bytes)
+    {
+        var finding = FileSizeRule.ForLength(bytes);
+        if (finding is null)
+            return report;
+
+        var findings = report.Findings.Append(finding).ToArray();
+        return report with
+        {
+            Findings = findings,
+            ParseabilityPercent = ScoreMath.PercentFromSeverities(findings.Select(item => item.Severity).ToArray())
+        };
     }
 }

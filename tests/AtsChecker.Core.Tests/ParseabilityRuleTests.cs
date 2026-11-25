@@ -81,7 +81,78 @@ public class ParseabilityRuleTests
     public void Layout_rules_do_not_run_when_layout_was_not_inspected()
     {
         var findings = ParseabilityRuleSet.Evaluate(Sample("body text", 200));
-        Assert.DoesNotContain(findings, finding => finding.RuleId is "tables" or "text-boxes" or "columns" or "header-footer");
+        Assert.DoesNotContain(findings, finding => finding.RuleId is "tables" or "text-boxes" or "columns" or "header-footer" or "images" or "fonts");
+    }
+
+    [Fact]
+    public void Dates_need_a_role_with_a_start_and_an_end()
+    {
+        var pass = ParseabilityRuleSet.Evaluate(Sample(
+            "Experience\nEngineer\nAcme\nJan 2020 - Mar 2023",
+            wordCount: 200));
+        AssertFinding(pass, "dates", Severity.Pass, "A role has a start and an end date.", "Jan 2020 – Mar 2023");
+
+        var lone = ParseabilityRuleSet.Evaluate(Sample("Jan 2020 to March 2023", wordCount: 200));
+        AssertFinding(lone, "dates", Severity.Warn, "No role has both a start and an end date.", "none found");
+    }
+
+    [Fact]
+    public void Location_placeholder_and_short_title_are_reported()
+    {
+        var pass = ParseabilityRuleSet.Evaluate(Sample("Austin, TX\nSenior Account Executive", wordCount: 200));
+        AssertFinding(pass, "location", Severity.Pass, "A city and region are present.", "Austin, TX");
+        AssertFinding(pass, "placeholders", Severity.Pass, "No template names were found.", "none found");
+        AssertFinding(pass, "job-titles", Severity.Pass, "Stored titles are written out.", "none abbreviated");
+
+        var warn = ParseabilityRuleSet.Evaluate(Sample(
+            "Experience\nSr. Account Exec\nCompany 1\nJan 2020 - Mar 2023",
+            wordCount: 200));
+        AssertFinding(warn, "location", Severity.Warn, "No city and region were found.", "none found");
+        AssertFinding(warn, "placeholders", Severity.Warn, "Parsers skip template names such as Company 1 or Your Name.", "Company 1");
+        AssertFinding(warn, "job-titles", Severity.Warn, "A shortened title such as Sr. or Exec is often stored incomplete.", "Sr. Account Exec");
+    }
+
+    [Fact]
+    public void Heading_with_a_date_suffix_matches_and_a_sentence_does_not()
+    {
+        var pass = ParseabilityRuleSet.Evaluate(Sample("Experience (2018-2024)", wordCount: 200));
+        AssertFinding(pass, "heading-experience", Severity.Pass, "A standard heading is present.", "Experience (2018-2024)");
+    }
+
+    [Fact]
+    public void Spaced_letters_and_icons_warn()
+    {
+        var spaced = ParseabilityRuleSet.Evaluate(Sample("E X P E R I E N C E", wordCount: 200));
+        AssertFinding(spaced, "spaced-letters", Severity.Warn, "Spaces between letters can stop a parser from reading a word.", "E X P E R I E N C E");
+
+        var icons = ParseabilityRuleSet.Evaluate(Sample("Skills \u260E", wordCount: 200));
+        AssertFinding(icons, "symbols", Severity.Warn, "Emoji and icon characters are often dropped or garbled.", "\u260E");
+
+        var plain = ParseabilityRuleSet.Evaluate(Sample("Skills and experience", wordCount: 200));
+        AssertFinding(plain, "spaced-letters", Severity.Pass, "Letters are not spaced out.", "none found");
+        AssertFinding(plain, "symbols", Severity.Pass, "No emoji or icon characters were found.", "none found");
+    }
+
+    [Fact]
+    public void Images_and_fonts_follow_inspection_flags()
+    {
+        var warned = new ExtractedResume(
+            ResumeSource.Pdf,
+            "body",
+            200,
+            new StructureFacts(0, 0, false, false, false, 2, true, "Comic Sans MS", true));
+        var findings = ParseabilityRuleSet.Evaluate(warned);
+        AssertFinding(findings, "images", Severity.Warn, "Images and graphics are not read as text.", "2");
+        AssertFinding(findings, "fonts", Severity.Warn, "An uncommon font can be read as the wrong characters.", "Comic Sans MS");
+
+        var clean = new ExtractedResume(
+            ResumeSource.Docx,
+            "body",
+            200,
+            new StructureFacts(0, 0, false, false, true, 0, true, null, true));
+        var passed = ParseabilityRuleSet.Evaluate(clean);
+        AssertFinding(passed, "images", Severity.Pass, "The file has no images.", "0 images");
+        AssertFinding(passed, "fonts", Severity.Pass, "The file uses common fonts.", "common fonts");
     }
 
     private static ExtractedResume Sample(string text, int wordCount)

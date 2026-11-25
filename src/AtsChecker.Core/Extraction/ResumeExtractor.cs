@@ -38,6 +38,10 @@ public sealed class ResumeExtractor : IResumeExtractor
             using var buffer = Copy(input.Content);
             using var document = PdfDocument.Open(buffer);
             var pages = new List<string>();
+            var imageCount = 0;
+            string? unusualFont = null;
+            var hasColumns = false;
+            var hasTable = false;
             foreach (var page in document.GetPages())
             {
                 var words = page.GetWords()
@@ -49,6 +53,11 @@ public sealed class ResumeExtractor : IResumeExtractor
                         word.BoundingBox.Top))
                     .ToList();
                 pages.Add(LineGrouper.Join(words));
+                imageCount += page.GetImages().Count();
+                hasColumns |= ReadingOrder.HasColumns(words);
+                hasTable |= ReadingOrder.HasTable(words);
+                if (unusualFont is null)
+                    unusualFont = FirstUnusualFont(page.Letters.Select(letter => letter.FontName));
             }
 
             var text = string.Join("\n\n", pages);
@@ -56,7 +65,7 @@ public sealed class ResumeExtractor : IResumeExtractor
                 ResumeSource.Pdf,
                 text,
                 WordCounter.Count(text),
-                new StructureFacts(0, 0, false, false, false));
+                new StructureFacts(hasTable ? 1 : 0, 0, hasColumns, false, false, imageCount, true, unusualFont, true, true));
         }
         catch (ResumeUnreadableException)
         {
@@ -85,6 +94,10 @@ public sealed class ResumeExtractor : IResumeExtractor
                 body.Descendants().Count(element => element.LocalName == "txbxContent"),
                 body.Descendants<Columns>().Any(columns => columns.ColumnCount is not null && columns.ColumnCount.Value > 1),
                 HeaderOrFooterHasText(doc),
+                true,
+                body.Descendants().Count(element => element.LocalName is "blip" or "pict"),
+                true,
+                FirstUnusualFont(body.Descendants<RunFonts>().SelectMany(fonts => new[] { fonts.Ascii?.Value, fonts.HighAnsi?.Value })),
                 true);
             return new ExtractedResume(ResumeSource.Docx, text, WordCounter.Count(text), facts);
         }
@@ -114,6 +127,19 @@ public sealed class ResumeExtractor : IResumeExtractor
         {
             if (current.LocalName == "p")
                 return current;
+        }
+
+        return null;
+    }
+
+    private static string? FirstUnusualFont(IEnumerable<string?> fontNames)
+    {
+        foreach (var fontName in fontNames)
+        {
+            if (fontName is null || FontNames.IsCommon(fontName))
+                continue;
+
+            return FontNames.Display(fontName);
         }
 
         return null;
